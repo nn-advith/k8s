@@ -1,0 +1,4 @@
+1. default backend ingress -> point to something
+2. multiple paths
+3. subdomains in ingress 
+4. tls 
