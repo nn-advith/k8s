@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "go-webserver.fullname" . }}
+  labels:
+    app: {{ include "go-webserver.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "go-webserver.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "go-webserver.name" . }}
+    spec:
+      containers:
+      - name: web
+        image: "{{ .Values.images.name }}:{{ .Values.images.tag }}"
+        imagePullPolicy: {{ .Values.images.pullPolicy }}
+        ports:
+          - name: http
+            containerPort: {{ .Values.service.containerPort }}
+            protocol: TCP

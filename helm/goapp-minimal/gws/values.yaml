@@ -1,0 +1,12 @@
+replicaCount: 1
+
+images:
+  name: nnadvith/go-webserver
+  tag: v2
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+  containerPort: 8080
+  port: 8080
+  nodePort: 31000
