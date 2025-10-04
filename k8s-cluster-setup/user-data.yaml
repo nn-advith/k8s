@@ -1,0 +1,20 @@
+#cloud-config
+runcmd:
+  - [eval, 'echo $(cat /proc/cmdline) "autoinstall" > /root/cmdline']
+  - [eval, 'mount -n --bind -o ro /root/cmdline /proc/cmdline']
+  - [eval, 'snap restart subiquity.subiquity-server']
+  - [eval, 'snap restart subiquity.subiquity-service']
+  
+autoinstall:
+  version: 1
+  identity:
+    hostname: beans.dev
+    username: beans
+    password: "$6$EKv0ZMnAlT5kAZB0$kYsj8kJTYPfZXkEWzFS0qqc89uN.9tkE2WdswomNz9biyOAXdPlSbMpdIrCYOtsb6Fl7PSoCyWl3dT6KOi46U/"
+  ssh:
+    install-server: true
+  network:
+    version: 2
+    ethernets:
+      ens33:
+        dhcp4: true
