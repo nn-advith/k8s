@@ -7,20 +7,28 @@ runcmd:
 
 autoinstall:
   version: 1
+  locale: en_US
   identity:
-    hostname: beans.dev
-    username: beans
-    password: "$6$EKv0ZMnAlT5kAZB0$kYsj8kJTYPfZXkEWzFS0qqc89uN.9tkE2WdswomNz9biyOAXdPlSbMpdIrCYOtsb6Fl7PSoCyWl3dT6KOi46U/"
+    hostname: <HOSTNAME>
+    username: <USERNAME>
+    password: <PASSWORD>
   ssh:
-    install-server: true
+    install-server: SSH_INSTALL_SERVER
+    authorized-keys:
+      - SSH_KEY01
+    allow-pw: SSH_ALLOW_PW
   network:
     version: 2
     ethernets:
-      enp0s3:
-        dhcp4: true
-      enp0s8:
-        dhcp4: no
+      NIC_01:
+        dhcp4: NIC01_DHCP
         addresses:
-          - 192.168.56.60/24
+          - NIC01_DHCP
         nameservers:
-          addresses: [8.8.8.8, 1.1.1.1]
+          addresses: [NIC01_DNS01]
+      NIC_02:
+        dhcp4: NIC02_DHCP
+        addresses:
+          - NIC02_DHCP
+        nameservers:
+          addresses: [NIC02_DNS01, NIC02_DNS02]

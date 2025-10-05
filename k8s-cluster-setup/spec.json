@@ -1,0 +1,44 @@
+{
+	"vms": [
+		{
+			"username": "beans",
+			"password": "beans",
+			"hostname": "beans.dev",
+			"memory": "4096",
+			"cpu": "2",
+			"nics": [
+				{
+					"type": "nat",
+					"dhcp": "true"
+				},
+				{
+					"type": "hostonly",
+					"adapter": "vboxnet0",
+					"dhcp": "no",
+					"address": "192.168.56.10/24",
+					"dns": ["8.8.8.8", "1.1.1.1"]
+				}
+			],
+			"storage": [
+				{
+					"type": "hdd",
+					"device": "0",
+					"port": "0",
+					"medium": "<path here>"
+				},
+				{
+					"type": "dvddrive",
+					"device": "0",
+					"port": "1",
+					"medium": "<path here>"
+				},
+				{
+					"type": "dvddrive",
+					"device": "0",
+					"port": "2",
+					"medium": "SEED"
+				}
+			]
+		}
+	]
+}
