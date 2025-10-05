@@ -1,5 +1,7 @@
 #!/bin/bash
 
+
+
 VMNAME="ubuntu-vm"
 ISOPATH="$HOME/iso/ubuntu-25.04-live-server-amd64.iso"
 SEEDISOPATH="$PWD/seed.iso"
@@ -12,10 +14,13 @@ VDI="$HOME/VirtualBox VMs/${VMNAME}/${VMNAME}.vdi"
 cp "$PWD/user-data.yaml" "$PWD/user-data"
 cloud-localds seed.iso "$PWD/user-data"
 
+function unmount
+
 alias vbm="VBoxManage"
 
 vbm createvm --name "${VMNAME}" --register
 vbm modifyvm "${VMNAME}" --memory 4096 --cpus 2 --ostype Ubuntu_64 --nic1 nat
+vbm modifyvm "${VMNAME}" --nic2 hostonly --hostonlyadapter2 vboxnet0 # probably customise this
 vbm createmedium disk --filename "${VDI}" --size 20000
 vbm storagectl "${VMNAME}" --name "SATA-C0" --add sata --controller IntelAHCI
 vbm storageattach "${VMNAME}" --storagectl "SATA-C0" --port 0 --device 0 --type hdd --medium "${VDI}"

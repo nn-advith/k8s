@@ -4,7 +4,7 @@ runcmd:
   - [eval, 'mount -n --bind -o ro /root/cmdline /proc/cmdline']
   - [eval, 'snap restart subiquity.subiquity-server']
   - [eval, 'snap restart subiquity.subiquity-service']
-  
+
 autoinstall:
   version: 1
   identity:
@@ -16,5 +16,11 @@ autoinstall:
   network:
     version: 2
     ethernets:
-      ens33:
+      enp0s3:
         dhcp4: true
+      enp0s8:
+        dhcp4: no
+        addresses:
+          - 192.168.56.60/24
+        nameservers:
+          addresses: [8.8.8.8, 1.1.1.1]
