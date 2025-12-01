@@ -1,5 +1,10 @@
 #!/bin/bash
 
+
+   ## create temp user-data by using the spec.json file
+    ## use that to create a seed iso that basically is mounted and executed befor the core os iso
+    ## create n vms and use the seed iso to create N vms
+
 VMNAME="ubuntu-vm"
 ISOPATH="$HOME/iso/ubuntu-25.04-live-server-amd64.iso"
 SEEDISOPATH="$PWD/seed.iso"
@@ -47,6 +52,8 @@ function preExecCheck() {
         done
         echo -e "\033[031mAborting\033[0m"
         exit 1
+    else
+        echo -e "\033[032mPre-Exec Checks done\033[0m"
     fi
 }
 
@@ -56,6 +63,12 @@ function preExecInputValidation() {
         echo -e "ERROR: JSON validation failed for $SPECJSONPATH \n\033[031mAborting\033[0m"
         exit 1
     fi
+
+
+    jq -c '.vms[]' "$SPECJSONPATH" | while read -r vminfo; do
+        # echo "VMINFO: $vminfo"
+        jq -r ".nics[1].address" <<< "$vminfo"
+    done
 }
 
 # function installSingleVM() {
