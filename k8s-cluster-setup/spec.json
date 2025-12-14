@@ -1,11 +1,18 @@
 {
 	"vms": [
 		{
+			"vmname": "vm0",
 			"username": "beans",
 			"password": "beans",
 			"hostname": "beans.dev",
+			"ostype": "Ubuntu_64",
 			"memory": "4096",
 			"cpu": "2",
+			"ssh": {
+				"install-ssh-server": "true",
+				"authorized": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPKvNb5pcQ/ZouwdIv3PmNtsuOCFTMLTsta6F9qfjHDI phonybeans@dev.com", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPKvNb5pcQ/ZouwdIv3PmNtsuOCFTMLTsta6F9qfjHDI phonybeans@dev.com"],
+				"allow-pw": "true"
+			},
 			"nics": [
 				{
 					"type": "nat",
@@ -14,8 +21,8 @@
 				{
 					"type": "hostonly",
 					"adapter": "vboxnet0",
-					"dhcp": "no",
-					"address": "192.168.56.10/24",
+					"dhcp": "false",
+					"address": ["192.168.56.10/24"],
 					"dns": ["8.8.8.8", "1.1.1.1"]
 				}
 			],
@@ -24,13 +31,14 @@
 					"type": "hdd",
 					"device": "0",
 					"port": "0",
-					"medium": "<path here>"
+					"medium": "PATH",
+					"size": "20000"
 				},
 				{
 					"type": "dvddrive",
 					"device": "0",
 					"port": "1",
-					"medium": "<path here>"
+					"medium": "PATH"
 				},
 				{
 					"type": "dvddrive",
@@ -39,46 +47,6 @@
 					"medium": "SEED"
 				}
 			]
-		},
-		{
-			"username": "beans",
-			"password": "beans",
-			"hostname": "beans.dev",
-			"memory": "4096",
-			"cpu": "2",
-			"nics": [
-				{
-					"type": "nat",
-					"dhcp": "true"
-				},
-				{
-					"type": "hostonly",
-					"adapter": "vboxnet0",
-					"dhcp": "no",
-					"address": "192.168.56.11/24",
-					"dns": ["8.8.8.8", "1.1.1.1"]
-				}
-			],
-			"storage": [
-				{
-					"type": "hdd",
-					"device": "0",
-					"port": "0",
-					"medium": "<path here>"
-				},
-				{
-					"type": "dvddrive",
-					"device": "0",
-					"port": "1",
-					"medium": "<path here>"
-				},
-				{
-					"type": "dvddrive",
-					"device": "0",
-					"port": "2",
-					"medium": "SEED"
-				}
-			]
-		}
+		} 	
 	]
 }

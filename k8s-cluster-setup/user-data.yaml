@@ -9,26 +9,23 @@ autoinstall:
   version: 1
   locale: en_US
   identity:
-    hostname: <HOSTNAME>
-    username: <USERNAME>
-    password: <PASSWORD>
+    hostname: HOSTNAME
+    username: USERNAME
+    password: PASSWORD
   ssh:
     install-server: SSH_INSTALL_SERVER
-    authorized-keys:
-      - SSH_KEY01
+    authorized-keys: [AUTHORIZED_KEYS]
     allow-pw: SSH_ALLOW_PW
   network:
     version: 2
     ethernets:
       NIC_01:
         dhcp4: NIC01_DHCP
-        addresses:
-          - NIC01_DHCP
+        addresses: [NIC01_ADDRESSES]
         nameservers:
-          addresses: [NIC01_DNS01]
+          addresses: [NIC01_DNS]
       NIC_02:
         dhcp4: NIC02_DHCP
-        addresses:
-          - NIC02_DHCP
+        addresses: [NIC02_ADDRESSES]
         nameservers:
-          addresses: [NIC02_DNS01, NIC02_DNS02]
+          addresses: [NIC02_DNS]
