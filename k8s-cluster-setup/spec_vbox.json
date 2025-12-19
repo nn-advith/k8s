@@ -15,13 +15,12 @@
 			},
 			"nics": [
 				{
-					"name": "default",
-					"model": "virtio",
+					"type": "nat",
 					"dhcp": "true"
 				},
 				{
-					"name": "hostonly",
-					"model": "virtio",
+					"type": "hostonly",
+					"adapter": "vboxnet0",
 					"dhcp": "false",
 					"address": ["192.168.56.40/24"],
 					"dns": ["8.8.8.8", "1.1.1.1"]
@@ -29,10 +28,23 @@
 			],
 			"storage": [
 				{
-					"type": "disk",
-					"size": "20",
-					"format": "qcow2",
-					"bus": "virtio"
+					"type": "hdd",
+					"device": "0",
+					"port": "0",
+					"medium": "PATH",
+					"size": "20000"
+				},
+				{
+					"type": "dvddrive",
+					"device": "0",
+					"port": "1",
+					"medium": "PATH"
+				},
+				{
+					"type": "dvddrive",
+					"device": "0",
+					"port": "2",
+					"medium": "SEED"
 				}
 			]
 		} 	

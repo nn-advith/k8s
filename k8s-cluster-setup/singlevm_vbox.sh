@@ -1,6 +1,10 @@
 #!/bin/bash
 
+### TEMPORARILY STOPPED. USING KVM NOW
 
+
+# sudo apt install libarchive-tools
+# 
    ## create temp user-data by using the spec.json file
     ## use that to create a seed iso that basically is mounted and executed befor the core os iso
     ## create n vms and use the seed iso to create N vms
@@ -11,8 +15,6 @@ SEEDISOPATH="$PWD/seed.iso"
 VDI="$HOME/VirtualBox VMs/${VMNAME}/${VMNAME}.vdi"
 
 SPECJSONPATH=""
-
-alias vbm="VBoxManage"
 
 function logError() {
     echo -e "\033[31mERROR\033[0m: ${1}" 
@@ -144,28 +146,47 @@ function registerVM() {
     vmname=$(jq -r '.vmname' <<< $vminfo)
     vdi="$HOME/VirtualBox VMs/${vmname}/${vmname}.vdi"
 
+    logStart "Creating seed iso: ${vmname}"
     cloud-localds "seed-${vmname}.iso" "$PWD/user-data-${vmname}"
-    vbm createvm --name "${vmname}" --register
-    vbm modifyvm "${vmname}" --memory $(jq -r '.memory' <<< $vminfo) --cpus $(jq -r '.cpus' <<< $vminfo) --ostype $(jq -r '.ostype' <<< $vminfo) --nic1 $(jq -r '.nics[0].type' <<< $vminfo)
-    vbm modifyvm "${vmname}" --nic2 $(jq -r '.nics[1].type' <<< $vminfo) --hostonlyadapter2 $(jq -r '.nics[1].adapter' <<< $vminfo) # probably customise this
-    vbm createmedium disk --filename "${vdi}" --size 20000
-    # vbm storagectl "${VMNAME}" --name "SATA-C0" --add sata --controller IntelAHCI
-    # vbm storageattach "${VMNAME}" --storagectl "SATA-C0" --port 0 --device 0 --type hdd --medium "${VDI}"
-    # vbm storageattach "${VMNAME}" --storagectl "SATA-C0" --port 1 --device 0 --type dvddrive --medium "${ISOPATH}"
-    # vbm storageattach "${VMNAME}" --storagectl "SATA-C0" --port 2 --device 0 --type dvddrive --medium "${SEEDISOPATH}"
+    if [[ $? -ne 0 ]];then
+        logError "failed creating seed iso for ${vmname}"
+        exit 1
+    else
+        logSuccess "created seed iso for ${vmname}"
+    fi
 
+    logStart "Start VM registration: ${vmname}"
+    VBoxManage createvm --name "${vmname}" --register
+    VBoxManage modifyvm "${vmname}" --memory $(jq -r '.memory' <<< $vminfo) --cpus $(jq -r '.cpu' <<< $vminfo) --ostype $(jq -r '.ostype' <<< $vminfo) --nic1 $(jq -r '.nics[0].type' <<< $vminfo)
+    VBoxManage modifyvm "${vmname}" --nic2 $(jq -r '.nics[1].type' <<< $vminfo) --hostonlyadapter2 $(jq -r '.nics[1].adapter' <<< $vminfo) # probably customise this
+    VBoxManage createmedium disk --filename "${vdi}" --size $(jq -r '.storage[] | select(.type=="hdd") |.size ' <<< $vminfo)
+    VBoxManage storagectl "${vmname}" --name "SATA-C0" --add sata --controller IntelAHCI
+    VBoxManage storageattach "${vmname}" --storagectl "SATA-C0" --port $(jq -r '.storage[] | select(.type=="hdd")|.port' <<< $vminfo) --device $(jq -r '.storage[] | select(.type=="hdd")|.device' <<< $vminfo) --type hdd --medium "${vdi}"
+    VBoxManage storageattach "${vmname}" --storagectl "SATA-C0" --port $(jq -r '[.storage[] | select(.type=="dvddrive")][0].port' <<< $vminfo) --device $(jq -r '[.storage[] | select(.type=="dvddrive")][0].device' <<< $vminfo) --type dvddrive --medium "${ISOPATH}"
+    VBoxManage storageattach "${vmname}" --storagectl "SATA-C0" --port $(jq -r '[.storage[] | select(.type=="dvddrive")][1].port' <<< $vminfo) --device $(jq -r '[.storage[] | select(.type=="dvddrive")][1].device' <<< $vminfo) --type dvddrive --medium "seed-${vmname}.iso"
+
+    # VBoxManage startvm "${vmname}" --type=headless
 }
 
 function installSingleVM() {
     # generateuser data
     # create vm and setup
 
+    logStart "removing old seeds"
+    rm -f seed-*.iso
+    if [[ $? -ne 0 ]];then 
+        logError "error removing old seeds"
+        exit 1
+    else
+        logSuccess "Done"
+    fi
+
     VM_SPEC_COUNT=$(jq '.vms | length' "$SPECJSONPATH")
     for ((i=0; i<VM_SPEC_COUNT; i++)); do
         vminfo=$(jq -c ".vms[$i]" "$SPECJSONPATH")
         # echo $vminfo
         generateUserData "${vminfo}"
-        # registerVM $vminfo
+        registerVM "${vminfo}"
     done
 }
 
@@ -205,13 +226,13 @@ installSingleVM
 
 
 
-# vbm createvm --name "${VMNAME}" --register
-# vbm modifyvm "${VMNAME}" --memory 4096 --cpus 2 --ostype Ubuntu_64 --nic1 nat
-# vbm modifyvm "${VMNAME}" --nic2 hostonly --hostonlyadapter2 vboxnet0 # probably customise this
-# vbm createmedium disk --filename "${VDI}" --size 20000
-# vbm storagectl "${VMNAME}" --name "SATA-C0" --add sata --controller IntelAHCI
-# vbm storageattach "${VMNAME}" --storagectl "SATA-C0" --port 0 --device 0 --type hdd --medium "${VDI}"
-# vbm storageattach "${VMNAME}" --storagectl "SATA-C0" --port 1 --device 0 --type dvddrive --medium "${ISOPATH}"
-# vbm storageattach "${VMNAME}" --storagectl "SATA-C0" --port 2 --device 0 --type dvddrive --medium "${SEEDISOPATH}"
+# VBoxManage createvm --name "${VMNAME}" --register
+# VBoxManage modifyvm "${VMNAME}" --memory 4096 --cpus 2 --ostype Ubuntu_64 --nic1 nat
+# VBoxManage modifyvm "${VMNAME}" --nic2 hostonly --hostonlyadapter2 vboxnet0 # probably customise this
+# VBoxManage createmedium disk --filename "${VDI}" --size 20000
+# VBoxManage storagectl "${VMNAME}" --name "SATA-C0" --add sata --controller IntelAHCI
+# VBoxManage storageattach "${VMNAME}" --storagectl "SATA-C0" --port 0 --device 0 --type hdd --medium "${VDI}"
+# VBoxManage storageattach "${VMNAME}" --storagectl "SATA-C0" --port 1 --device 0 --type dvddrive --medium "${ISOPATH}"
+# VBoxManage storageattach "${VMNAME}" --storagectl "SATA-C0" --port 2 --device 0 --type dvddrive --medium "${SEEDISOPATH}"
 
-# vbm startvm "${VMNAME}" --type=headless
+# VBoxManage startvm "${VMNAME}" --type=headless
