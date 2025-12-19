@@ -17,3 +17,18 @@ version 1 requirements:
 6. Each VM gets one virtual SATA storage controller; mounted with vHDD, bootISO and seedISO.
 7. Post installation: the bootISO and seedISO must be unmounted; post install commands to be executed; restarted (if needed)
 8. Additional post installation setup; after reboot- execute script/commands based on use case ( example: bring up a k8s cluster ) [Check if script needed or post-install commands from autoinstall script is enough; script will be reusable across differed OS]
+
+---
+
+## KVM VM deployment design
+
+Input:  spec.json -> contains vm configuration (for now), post install commands and scripts ( future; may not be needed, can probably be added as curtain in )
+user-data.yaml -> user-data template
+meta-data.yaml -> meta-data template
+
+v1:
+
+1. spec.json contains n number of VM definitions
+2. For ech VM, generate user-data and meta-data files, expose them via the nginx http server ( easier compared to bundling with iso )
+3. Create virt-install command dynamically and execute command
+4. Each vm will shutoff post installation; Reboot and verify installation.
