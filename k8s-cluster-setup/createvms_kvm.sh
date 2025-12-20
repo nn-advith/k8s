@@ -31,7 +31,7 @@ function usage() {
 }
 
 function execwithlog() {
-    "$@" || {
+    "$@"  || {
         logError "Command failed: $*"
         return 1
     }
@@ -129,9 +129,9 @@ function generateUserData() {
 
     # nic related : assuming 2 nics for now; STUPID asssumption but ok
     niclength=$(jq '.nics | length' <<< "${vminfo}")
-    for ((i=0; i<niclength; i++)); do
-        nicinfo=$(jq -rc ".nics[$i]" <<< ${vminfo})
-        uindex=$((i+1))
+    for ((j=0; j<niclength; j++)); do
+        nicinfo=$(jq -rc ".nics[$j]" <<< ${vminfo})
+        uindex=$((j+1))
         interfacename="enp${uindex}s0"
         if [[ $(jq -r ".dhcp" <<< ${nicinfo}) == "true" ]];then
             # remove addresses namesserver etc
@@ -191,15 +191,15 @@ function createVM() {
     )
 
     niclength=$(jq '.nics | length' <<< "${vminfo}")
-    for ((i=0; i<niclength; i++)); do
-        nicinfo=$(jq -rc ".nics[$i]" <<< ${vminfo})
+    for ((j=0; j<niclength; j++)); do
+        nicinfo=$(jq -rc ".nics[$j]" <<< ${vminfo})
         # uindex=$((i+1))
         cmd+=( --network network=$(jq -r '.name' <<< ${nicinfo}),model=$(jq -r '.model' <<< ${nicinfo}) )
     done
 
     storagelength=$(jq '.storage | length' <<< "${vminfo}")
-    for ((i=0; i<storagelength; i++)); do
-        storageinfo=$(jq -rc ".storage[$i]" <<< ${vminfo})
+    for ((j=0; j<storagelength; j++)); do
+        storageinfo=$(jq -rc ".storage[$j]" <<< ${vminfo})
         # uindex=$((i+1))
         cmd+=( --disk size=$(jq -r '.size' <<< ${storageinfo}),format=$(jq -r '.format' <<< ${storageinfo}),bus=$(jq -r '.bus' <<< ${storageinfo}) )
     done
@@ -208,6 +208,7 @@ function createVM() {
     log "Starting VM installation for ${vmname}"
 
     execwithlog "${cmd[@]}"
+    # "${cmd[@]}"
     
     return 0
 }
@@ -218,16 +219,21 @@ function installVMs() {
     ## create user data and copy to the userdata dir; assume userdata autoinstall dir
 
     VM_SPEC_COUNT=$(jq '.vms | length' "$SPECJSONPATH")
+    echo $VM_SPEC_COUNT
     for ((i=0; i<VM_SPEC_COUNT; i++)); do
         vminfo=$(jq -c ".vms[$i]" "$SPECJSONPATH")
         # echo $vminfo
+        # echo "vm-${i}"
         generateUserData "${vminfo}"
-        if [[ $? -eq 1 ]];then
+        retval=$?
+        if [[ $retval -eq 1 ]];then
             logError "user-data generation failed for $(jq -r '.vmname' <<< $vminfo)"
             return 1
         fi
-        createVM "${vminfo}" 
-        if [[ $? -eq 1 ]];then
+        createVM "${vminfo}"
+        retval=$? 
+        # echo "Checking for ${i}"
+        if [[ $retval -eq 1 ]];then
             logError "vm creation failed for $(jq -r '.vmname' <<< $vminfo)"
             return 1
         fi
@@ -235,6 +241,68 @@ function installVMs() {
     return 0
 }
 
+function isShutOff() {
+    # arg = vmname
+    vmname="${1}"
+    iter=0
+    maxiter=45
+    while [[ ${iter} -lt ${maxiter} ]]; do
+        if [[ "$(virsh domstate ${vmname})" == "shut off" ]];then
+            return 0
+        else 
+            log "WAIT: VM ${vmname} is still runnning; waiting for shutoff"
+            sleep 20
+            ((iter++))
+        fi
+    done
+    return 1
+    
+}
+
+function startVM() {
+    # arg = vmname, vmip
+    vmname="${1}"
+    vmip="${2}"
+    execwithlog virsh start "${vmname}"
+    # wait for ssh
+    iter=1
+    maxiter=120
+    while [[ ${iter} -lt ${maxiter} ]];do
+        if ! nc -z "${vmip}" 22 > /dev/null 2>&1;then
+            log "vm ${vmname} waiting for ssh"
+            sleep 10
+            ((iter++))
+        else 
+            return 0
+        fi
+    done
+    return 1
+}
+
+function postInstallVerification() {
+    # if installVMs is successful, wait for each VM to move to shutoff state
+    # reboot and ssh check
+    VM_SPEC_COUNT=$(jq '.vms | length' "$SPECJSONPATH")
+    for ((i=0; i <VM_SPEC_COUNT; i++));do
+        vmname=$(jq -r ".vms[${i}].vmname" "$SPECJSONPATH")
+        vmip=$(jq -r ".vms[${i}].nics[1].address[0]" spec.json  | cut -d/ -f1)
+        isShutOff "${vmname}"
+        if [[ $? -eq 0 ]];then 
+            log "vm ${vmname} is shutdown; rebooting"
+            startVM "${vmname}" "${vmip}"
+            if [[ $? -eq 0 ]];then                
+                logSuccess "VM started: ${vmname}; SSH is running."
+            else
+                logError "vm ${vmname} failed to start / SSH failed."
+                return 1
+            fi
+        else
+            logError "vm ${vmname} failed to shutdown within interval; exiting"
+            return 1
+        fi
+    done
+    return 0
+}
 
 
 #begin
@@ -261,6 +329,8 @@ preExecInputValidation || exit 1
 preExecCheck || exit 1
 
 installVMs || exit 1
+
+postInstallVerification || exit 1
 
 # by default post installation the vms will be shutoff, wait for shutoff and reboot
 # perform ssh check using nc -z to verify installation
