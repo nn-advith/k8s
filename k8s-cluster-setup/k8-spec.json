@@ -1,0 +1,112 @@
+{
+	"vms": [
+		{
+			"vmname": "k8-master-0",
+			"username": "beans",
+			"password": "beans",
+			"hostname": "k8-master-0",
+			"ostype": "Ubuntu_64",
+			"memory": "2048",
+			"cpu": "2",
+			"ssh": {
+				"install-ssh-server": "true",
+				"authorized": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPKvNb5pcQ/ZouwdIv3PmNtsuOCFTMLTsta6F9qfjHDI phonybeans@dev.com"],
+				"allow-pw": "true"
+			},
+			"nics": [
+				{
+					"name": "default",
+					"model": "virtio",
+					"dhcp": "true"
+				},
+				{
+					"name": "hostonly",
+					"model": "virtio",
+					"dhcp": "false",
+					"address": ["192.168.56.30/24"],
+					"dns": ["8.8.8.8", "1.1.1.1"]
+				}
+			],
+			"storage": [
+				{
+					"type": "disk",
+					"size": "20",
+					"format": "qcow2",
+					"bus": "virtio"
+				}
+			]
+		},
+		{
+			"vmname": "k8-worker-0",
+			"username": "beans",
+			"password": "beans",
+			"hostname": "k8-worker-0",
+			"ostype": "Ubuntu_64",
+			"memory": "2048",
+			"cpu": "1",
+			"ssh": {
+				"install-ssh-server": "true",
+				"authorized": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPKvNb5pcQ/ZouwdIv3PmNtsuOCFTMLTsta6F9qfjHDI phonybeans@dev.com"],
+				"allow-pw": "true"
+			},
+			"nics": [
+				{
+					"name": "default",
+					"model": "virtio",
+					"dhcp": "true"
+				},
+				{
+					"name": "hostonly",
+					"model": "virtio",
+					"dhcp": "false",
+					"address": ["192.168.56.31/24"],
+					"dns": ["8.8.8.8", "1.1.1.1"]
+				}
+			],
+			"storage": [
+				{
+					"type": "disk",
+					"size": "20",
+					"format": "qcow2",
+					"bus": "virtio"
+				}
+			]
+		},
+		{
+			"vmname": "k8-worker-1",
+			"username": "beans",
+			"password": "beans",
+			"hostname": "k8-worker-1",
+			"ostype": "Ubuntu_64",
+			"memory": "2048",
+			"cpu": "1",
+			"ssh": {
+				"install-ssh-server": "true",
+				"authorized": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPKvNb5pcQ/ZouwdIv3PmNtsuOCFTMLTsta6F9qfjHDI phonybeans@dev.com"],
+				"allow-pw": "true"
+			},
+			"nics": [
+				{
+					"name": "default",
+					"model": "virtio",
+					"dhcp": "true"
+				},
+				{
+					"name": "hostonly",
+					"model": "virtio",
+					"dhcp": "false",
+					"address": ["192.168.56.32/24"],
+					"dns": ["8.8.8.8", "1.1.1.1"]
+				}
+			],
+			"storage": [
+				{
+					"type": "disk",
+					"size": "20",
+					"format": "qcow2",
+					"bus": "virtio"
+				}
+			]
+		}	
+	]
+}

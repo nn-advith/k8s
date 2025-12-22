@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# TODO: 
+# 
+
 ISOPATH="/var/lib/libvirt/boot/ubuntu-25.04-live-server-amd64.iso"
 SPECJSONPATH=""
 HTTP_DIR="/var/www/html/autoinstall"
@@ -22,6 +25,10 @@ function logStart() {
 
 function log() {
     echo -e "$(date +'%d-%m-%Y %H:%M:%S %Z:') ${1}"
+}
+
+function logWarn() {
+    echo -e "$(date +'%d-%m-%Y %H:%M:%S %Z:') \033[33m[WARN]\033[0m: ${1}"
 }
 
 function usage() {
@@ -241,7 +248,7 @@ function installVMs() {
     return 0
 }
 
-function isShutOff() {
+function waitForShutOff() {
     # arg = vmname
     vmname="${1}"
     iter=0
@@ -262,19 +269,25 @@ function isShutOff() {
 function startVM() {
     # arg = vmname, vmip
     vmname="${1}"
-    vmip="${2}"
-    execwithlog virsh start "${vmname}"
+    logStart "Starting VM ${vmname}"
+    virsh start "${vmname}" > /dev/null 2>&1 || return 1
+    logStart "Started VM ${vmname}"
+    return 0
+}
+
+function waitForSSH() {
     # wait for ssh
+    vmname="${1}"
+    vmip="${2}"
     iter=1
     maxiter=120
     while [[ ${iter} -lt ${maxiter} ]];do
-        if ! nc -z "${vmip}" 22 > /dev/null 2>&1;then
-            log "vm ${vmname} waiting for ssh"
-            sleep 10
-            ((iter++))
-        else 
+        if nc -z "${vmip}" 22 > /dev/null 2>&1;then
             return 0
         fi
+        log "vm ${vmname}:${vmip} waiting for ssh"
+        sleep 10
+        ((iter++))
     done
     return 1
 }
@@ -285,24 +298,28 @@ function postInstallVerification() {
     VM_SPEC_COUNT=$(jq '.vms | length' "$SPECJSONPATH")
     for ((i=0; i <VM_SPEC_COUNT; i++));do
         vmname=$(jq -r ".vms[${i}].vmname" "$SPECJSONPATH")
+        vmhostname=$(jq -r ".vms[${i}].hostname" "$SPECJSONPATH")
         vmip=$(jq -r ".vms[${i}].nics[1].address[0]" spec.json  | cut -d/ -f1)
-        isShutOff "${vmname}"
-        if [[ $? -eq 0 ]];then 
-            log "vm ${vmname} is shutdown; rebooting"
-            startVM "${vmname}" "${vmip}"
-            if [[ $? -eq 0 ]];then                
-                logSuccess "VM started: ${vmname}; SSH is running."
-            else
-                logError "vm ${vmname} failed to start / SSH failed."
-                return 1
-            fi
-        else
-            logError "vm ${vmname} failed to shutdown within interval; exiting"
+        # /etc/hosts update
+        echo "${vmip} ${vmhostname}" | sudo tee -a /etc/hosts > /dev/null || {
+            logWarn "failed appending entry to /etc/hosts: ${vmip} ${vmhostname} (ignored)"
+        }
+        waitForShutOff "${vmname}" || {
+            logError "VM ${vmname}:${vmip} failed to shut off. Aborting"
             return 1
-        fi
+        }
+        startVM "${vmname}" || {
+            logError "VM ${vmname} failed to start. Aborting"
+            return 1
+        }
+        waitForSSH "${vmname}" "${vmip}" || {
+            logError "SSH not reachable on ${vmname}:"
+            return 1
+        }
     done
     return 0
 }
+
 
 
 #begin
