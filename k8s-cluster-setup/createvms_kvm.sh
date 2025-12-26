@@ -299,11 +299,15 @@ function postInstallVerification() {
     for ((i=0; i <VM_SPEC_COUNT; i++));do
         vmname=$(jq -r ".vms[${i}].vmname" "$SPECJSONPATH")
         vmhostname=$(jq -r ".vms[${i}].hostname" "$SPECJSONPATH")
-        vmip=$(jq -r ".vms[${i}].nics[1].address[0]" spec.json  | cut -d/ -f1)
+        vmip=$(jq -r ".vms[${i}].nics[1].address[0]" "$SPECJSONPATH"  | cut -d/ -f1)
         # /etc/hosts update
-        echo "${vmip} ${vmhostname}" | sudo tee -a /etc/hosts > /dev/null || {
-            logWarn "failed appending entry to /etc/hosts: ${vmip} ${vmhostname} (ignored)"
-        }
+        if ! grep -q "${vmip}" /etc/hosts;then 
+            echo "${vmip} ${vmhostname}" | sudo tee -a /etc/hosts > /dev/null || {
+                logWarn "failed appending entry to /etc/hosts: ${vmip} ${vmhostname} (ignored)"
+            }
+        else
+            logWarn "${vmip} already present in /etc/hosts; ignoring"
+        fi
         waitForShutOff "${vmname}" || {
             logError "VM ${vmname}:${vmip} failed to shut off. Aborting"
             return 1
