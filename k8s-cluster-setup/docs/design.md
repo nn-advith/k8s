@@ -32,3 +32,12 @@ v1:
 2. For ech VM, generate user-data and meta-data files, expose them via the nginx http server ( easier compared to bundling with iso )
 3. Create virt-install command dynamically and execute command
 4. Each vm will shutoff post installation; Reboot and verify installation.
+5. Post-reboot script execution.4
+
+\# Post install Script
+ - post-install-script will contain n scipts
+ - for each script per vm, remotely execute the script in order using ssh
+ - if any script fails, terminate the script execution for that vm and proceed to next with logging
+ - also log in the vm for later checks
+
+

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # TODO: 
-# 
+# post install script execution
 
 ISOPATH="/var/lib/libvirt/boot/ubuntu-25.04-live-server-amd64.iso"
 SPECJSONPATH=""
@@ -151,6 +151,15 @@ function generateUserData() {
             execwithlog sed -i "0,/NIC_0${uindex}/s/NIC_0${uindex}/${interfacename}/" "user-data-${vmname}"
             execwithlog sed -i "s/NIC0${uindex}_DHCP/$(jq -r '.dhcp' <<< ${nicinfo})/" "user-data-${vmname}"
             # addresses and nameservers
+            # check whether vmip is already assigned, if yes, stop. 
+            vmip=$(jq -rc '.address' <<< ${nicinfo} | tr -d '[]' | cut -d/ -f1 | tr -d '""')
+            if ping -q -c 1 "${vmip}" > /dev/null;then
+                # already assigned
+                logError "IP ${vmip} is already assigned to some host. Aborting"
+                return 1
+            else 
+                log "IP ${vmip} is free to use"
+            fi
             execwithlog sed -i "s|NIC0${uindex}_ADDRESSES|$(jq -rc '.address' <<< ${nicinfo} | tr -d '[]')|" "user-data-${vmname}"
             execwithlog sed -i "s|NIC0${uindex}_DNS|$(jq -rc '.dns' <<< ${nicinfo} | tr -d '[]')|" "user-data-${vmname}"
         fi
@@ -226,7 +235,6 @@ function installVMs() {
     ## create user data and copy to the userdata dir; assume userdata autoinstall dir
 
     VM_SPEC_COUNT=$(jq '.vms | length' "$SPECJSONPATH")
-    echo $VM_SPEC_COUNT
     for ((i=0; i<VM_SPEC_COUNT; i++)); do
         vminfo=$(jq -c ".vms[$i]" "$SPECJSONPATH")
         # echo $vminfo
@@ -306,7 +314,12 @@ function postInstallVerification() {
                 logWarn "failed appending entry to /etc/hosts: ${vmip} ${vmhostname} (ignored)"
             }
         else
-            logWarn "${vmip} already present in /etc/hosts; ignoring"
+            logWarn "${vmip} already present in /etc/hosts; overriding"
+            # /etc/hosts editing shoule be made paswordless using visudo
+            sudo sed -i "s/${vmip}.*/${vmip} ${vmhostname}/" /etc/hosts
+            if [[ $? -ne 0 ]];then
+                logWarn "/etc/hosts modification failed for ${vmip}; skipping"
+            fi
         fi
         waitForShutOff "${vmname}" || {
             logError "VM ${vmname}:${vmip} failed to shut off. Aborting"
@@ -325,6 +338,40 @@ function postInstallVerification() {
 }
 
 
+function postInstallScriptExec() {
+    # Run n scipts
+    # for each script per vm, remote execute using below pattern
+    # remote execuriton is better
+    # ssh beans@m0 'mkdir -p /tmp/logs/; bash -s > >(tee /tmp/logs/generic.log) 2>&1' < generic.sh ; echo $?
+    VM_SPEC_COUNT=$(jq '.vms | length' "$SPECJSONPATH")
+    skipped=false
+    for ((i=0; i<$VM_SPEC_COUNT; i++));do
+        vminfo=$(jq -c ".vms[$i]" "$SPECJSONPATH")
+        username=$(jq -r ".username" <<< "${vminfo}")
+        hostname=$(jq -r ".hostname" <<< "${vminfo}")
+        pislength=$(jq '."post-install-scripts" | length' <<< "${vminfo}")
+        skipped=false
+        log "Beginning script execution for ${hostname}"
+        for ((j=0; j<pislength; j++));do
+            #jth script
+            scriptpath=$(jq -r ".\"post-install-scripts\"[$j]" <<< "${vminfo}")
+            scriptname=$(basename "${scriptpath}")
+            
+            ssh "${username}@${hostname}" "mkdir -p /tmp/createvm-logs/; bash -s > >(tee /tmp/createvm-logs/${scriptname}-$(date +'%Y%m%d_%H%M%S').log) 2>&1" < "${scriptpath}"
+            if [[ $? -ne 0 ]];then
+                logError "Script execution failed for ${scriptpath} on ${hostname}; skipping remaining scripts"
+                skipped=true
+                break
+            else
+                logSuccess "Script execuriton successful for ${scriptpath} on ${hostname}"
+            fi
+        done
+        if [[ "${skipped}" == "true" ]];then 
+            logWarn "Scripts skipped for ${hostname}"
+        fi
+    done
+
+}
 
 #begin
 while [[ $# -gt 0 ]];do
@@ -353,6 +400,7 @@ installVMs || exit 1
 
 postInstallVerification || exit 1
 
+postInstallScriptExec || exit 1
 # by default post installation the vms will be shutoff, wait for shutoff and reboot
 # perform ssh check using nc -z to verify installation
 # wait till all vms are verified, then exit

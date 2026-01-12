@@ -34,43 +34,11 @@
 					"format": "qcow2",
 					"bus": "virtio"
 				}
-			]
-		},
-		{
-			"vmname": "vm1",
-			"username": "beans",
-			"password": "beans",
-			"hostname": "beans.dev",
-			"ostype": "Ubuntu_64",
-			"memory": "2048",
-			"cpu": "1",
-			"ssh": {
-				"install-ssh-server": "true",
-				"authorized": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPKvNb5pcQ/ZouwdIv3PmNtsuOCFTMLTsta6F9qfjHDI phonybeans@dev.com"],
-				"allow-pw": "true"
-			},
-			"nics": [
-				{
-					"name": "default",
-					"model": "virtio",
-					"dhcp": "true"
-				},
-				{
-					"name": "hostonly",
-					"model": "virtio",
-					"dhcp": "false",
-					"address": ["192.168.56.41/24"],
-					"dns": ["8.8.8.8", "1.1.1.1"]
-				}
 			],
-			"storage": [
-				{
-					"type": "disk",
-					"size": "20",
-					"format": "qcow2",
-					"bus": "virtio"
-				}
+			"post-install-scripts": [
+				"/home/normalbeans/programming/kubernetes/k8s/k8s-cluster-setup/temp/generic.sh",
+				"/home/normalbeans/programming/kubernetes/k8s/k8s-cluster-setup/temp/specific.sh"
 			]
-		} 	 	
+		}
 	]
 }
