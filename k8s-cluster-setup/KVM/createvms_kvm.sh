@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # TODO: 
-# post install script execution
+# post install script execution: install k8s cluster automatically
+# post install script: argument support
 
 ISOPATH="/var/lib/libvirt/boot/ubuntu-25.04-live-server-amd64.iso"
 SPECJSONPATH=""
@@ -357,6 +358,7 @@ function postInstallScriptExec() {
             scriptpath=$(jq -r ".\"post-install-scripts\"[$j]" <<< "${vminfo}")
             scriptname=$(basename "${scriptpath}")
             
+            # modify this to have arguments
             ssh "${username}@${hostname}" "mkdir -p /tmp/createvm-logs/; bash -s > >(tee /tmp/createvm-logs/${scriptname}-$(date +'%Y%m%d_%H%M%S').log) 2>&1" < "${scriptpath}"
             if [[ $? -ne 0 ]];then
                 logError "Script execution failed for ${scriptpath} on ${hostname}; skipping remaining scripts"
