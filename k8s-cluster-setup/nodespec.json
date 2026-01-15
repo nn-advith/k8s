@@ -1,0 +1,23 @@
+{
+    "nodes": [
+        {
+            "username": "beans",
+            "hostname": "m0",
+            "role": "control-plane",
+            "init": "true"
+        },
+        {
+            "username": "beans",
+            "hostname": "w0",
+            "role": "worker",
+            "init": "false"
+        },
+        {
+            "username": "beans",
+            "hostname": "w1",
+            "role": "worker",
+            "init": "false"
+        }
+
+    ]
+}
