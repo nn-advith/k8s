@@ -25,6 +25,13 @@
 
 # }
 
+# TODO:
+# Allow one more operation to proceed with just cluster initialisation, assuming bootstrap is successful.
+# Control plane join node ( certs )
+# pod network enabling - maybe customise this to support different CNI
+# improve logging so that only command status is logged to stdout; command logs to be redireted to log files within nodes ( 
+# or maybe a timestamped log file on host idk)
+
 CLUSTERSPEC=""
 # allowed operations: deploy, remove
 OPERATION=""
@@ -93,11 +100,11 @@ function inputValidation() {
 
 function bootstrap() {
 # for each VM run the common commands
-# NODELENGTH=$(jq '.nodes|length' "${CLUSTERSPEC}")
-NODELENGTH=1
-for((i=0; i<NODELENGTH; i++));do
-vmuser=$(jq -r ".nodes[$i].username" "${CLUSTERSPEC}")
-vmhost=$(jq -r ".nodes[$i].hostname" "${CLUSTERSPEC}")
+    NODELENGTH=$(jq '.nodes|length' "${CLUSTERSPEC}")
+    # NODELENGTH=1
+    for((i=0; i<NODELENGTH; i++));do
+        vmuser=$(jq -r ".nodes[$i].username" "${CLUSTERSPEC}")
+        vmhost=$(jq -r ".nodes[$i].hostname" "${CLUSTERSPEC}")
 
 # exec here; dump and fail fck it
 ssh -o BatchMode=yes -o ConnectTimeout=5 "${vmuser}@${vmhost}" 'bash -s' <<-'SSH_EOF'
@@ -113,19 +120,14 @@ sudo systemctl enable --now kubelet
 
 kubeadm version
 
-sudo tee /etc/docker/daemon.json <<'DOCKER_EOF'
-{ "exec-opts": ["native.cgroupdriver=systemd"],  
-"log-driver": "json-file",  
-"log-opts":  
-{ "max-size": "100m" },  
-"storage-driver": "overlay2"  
-}  
-DOCKER_EOF
-sudo systemctl restart docker
-sudo docker info | grep -i cgroup
+sudo apt-get install -y containerd
+sudo mkdir -p /etc/containerd
+sudo containerd config default | sudo tee /etc/containerd/config.toml
+sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+sudo systemctl enable --now containerd
 
 sudo swapoff -a
-sudo sed -i "/\/swap\.img/s/^/#/" /etc/fstab
+sudo sed -i "/^\/swap\.img/s/^/#/" /etc/fstab
 
 sudo modprobe overlay  
 sudo modprobe br_netfilter
@@ -141,13 +143,13 @@ net.ipv4.ip_forward = 1
 SYSCTL_EOF
 sudo sysctl --system
 SSH_EOF
-if [ $? -ne 0 ]; then
-    logError "Something failed while bootstrapping ${vmhost}"
-    return 1
-fi
-logSuccess "Bootstrap completed for ${vmhost}"
-done
-return 0
+        if [ $? -ne 0 ]; then
+            logError "Something failed while bootstrapping ${vmhost}"
+            return 1
+        fi
+        logSuccess "Bootstrap completed for ${vmhost}"
+    done
+    return 0
 }
 
 
@@ -156,11 +158,61 @@ function setupCluster() {
     # firt init the cluster
     # then run another loop and join control plane and worker nodes; if control plane also setup .config
     # last setup pod-nwtwork ; maybe in a different function
+    initcpnode=$(jq -r '.nodes[] | select(.role=="control-plane" and .init=="true") | .hostname ' "${CLUSTERSPEC}")
+    initcpuser=$(jq -r '.nodes[] | select(.role=="control-plane" and .init=="true") | .username ' "${CLUSTERSPEC}")
+    if [[ $(echo "${initcpnode}" | wc -l) -gt 1 ]];then
+        logError "Please restrict the number of init control-plane nodes to 1"
+        return 1
+    fi
+    if [[ $(echo "${initcpnode}" | wc -l) -eq 0 ]];then
+        logError "Please designate atleast 1 control-plane node as init node"
+        return 1
+    fi
+
+    # perform init operation in init CP node.
+ssh -o BatchMode=yes -o ConnectTimeout=5 "${initcpuser}@${initcpnode}" 'bash -s' <<'INIT_EOF'
+MASTER_IP=$(ip -4 addr show enp2s0 | awk '/inet / {print $2}' | cut -d/ -f1)
+sudo kubeadm init \
+--apiserver-advertise-address "${MASTER_IP}" \
+--control-plane-endpoint "${MASTER_IP}" \
+--pod-network-cidr=10.244.0.0/16 \
+--ignore-preflight-errors=Mem \
+--upload-certs
+
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+INIT_EOF
+    if [[ $? -ne 0 ]];then
+        logError "Cluster init failed: ${initcpnode}; Aborting"
+        return 1
+    else
+        logSuccess "Cluster initialised"
+    fi
+
+    # cluster access step is done for only one CP ndoe as of now. extend this
+
+    # perform join operations; let's skip control plane join for now since it is a little bit longer
+
+    WORKER_JOIN_COMMAND=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "${initcpuser}@${initcpnode}" "sudo kubeadm token create --print-join-command")
+    echo "${WORKER_JOIN_COMMAND}"
+
+    while read -r username hostname; do
+        if ssh -n -o BatchMode=yes -o ConnectTimeout=5 \
+            "${username}@${hostname}" "sudo ${WORKER_JOIN_COMMAND}"; then
+            logSuccess "Worker ${hostname} joined cluster."
+        else
+            logError "Join Command failed for worker: ${hostname}"
+        fi
+    done < <(jq -r '.nodes[] | select(.role=="worker") | "\(.username) \(.hostname)"' "${CLUSTERSPEC}")
+
+    return 0
 }
 
 function nukeArnhem() {
 # wipe everything
-NODELENGTH=1
+NODELENGTH=$(jq '.nodes|length' "${CLUSTERSPEC}")
 for((i=0; i<NODELENGTH; i++));do
 vmuser=$(jq -r ".nodes[$i].username" "${CLUSTERSPEC}")
 vmhost=$(jq -r ".nodes[$i].hostname" "${CLUSTERSPEC}")
@@ -169,29 +221,34 @@ vmhost=$(jq -r ".nodes[$i].hostname" "${CLUSTERSPEC}")
 ssh -o BatchMode=yes -o ConnectTimeout=5 "${vmuser}@${vmhost}" 'bash -s' <<-'SSH_EOF'
 set -euo pipefail
 sudo kubeadm reset -f
+
 sudo rm -rf /etc/cni/net.d
 sudo rm -rf /run/flannel
 sudo rm -rf /var/lib/cni
 sudo ip link delete flannel.1 2>/dev/null || true
 sudo ip link delete cni0 2>/dev/null || true
+
 sudo apt-get purge -y --allow-change-held-packages kubeadm kubectl kubelet kubernetes-cni kube*
 sudo apt autoremove -y
 sudo rm -rf ~/.kube
 sudo rm -rf /etc/cni /etc/kubernetes
-sudo rm -f /etc/apparmor.d/docker /etc/systemd/system/etcd*
-sudo rm -rf /var/lib/dockershim /var/lib/etcd /var/lib/kubelet  /var/lib/etcd2/ /var/run/kubernetes
+sudo rm -f /etc/systemd/system/etcd*
+sudo rm -rf /var/lib/etcd /var/lib/kubelet  /var/lib/etcd2/ /var/run/kubernetes
+
 sudo iptables -F && sudo iptables -X
 sudo iptables -t nat -F && sudo iptables -t nat -X
 sudo iptables -t raw -F && sudo iptables -t raw -X
 sudo iptables -t mangle -F && sudo iptables -t mangle -X
-sudo rm -rf /etc/docker/daemon.json 
-sudo apt purge -y docker.io
-sudo rm -rf /var/lib/docker /etc/docker
-sudo groupdel docker || true
-sudo rm -rf /var/run/docker.sock
-sudo rm -rf /var/lib/containerd
-sudo rm -rf /root/.docker
+
+sudo systemctl stop containerd || true
+sudo systemctl disable containerd || true
+sudo apt-get purge -y containerd containerd.io || true
+sudo rm -rf /var/lib/containerd /etc/containerd /run/containerd
+sudo rm -f /run/containerd/containerd.sock
+
+sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
+
 sudo rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 sudo rm -f /etc/modules-load.d/k8s.conf
 sudo rm -f /etc/sysctl.d/99-kubernetes.conf
@@ -200,7 +257,7 @@ sudo sysctl --system
 SSH_EOF
 if [ $? -ne 0 ]; then
     logError "Something failed while wiping ${vmhost}"
-    return 1
+    continue
 fi
 logSuccess "Wipe successful for ${vmhost}"
 done
@@ -236,6 +293,7 @@ inputValidation || exit 1
 # check if deploy, addume deploy for now
 if [[ ${OPERATION} == "deploy" ]];then
     # bootstrap || exit 1
+    setupCluster || exit 1
     echo ""
 else
     nukeArnhem || exit 1

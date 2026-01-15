@@ -41,3 +41,6 @@ v1:
  - also log in the vm for later checks
 
 
+
+\# Note: Apparently docker is not required for K8s. it is not recommended. But containerd is probably a better thing to use with K8s. Just use containerd since it is default
+https://kubernetes.io/docs/setup/production-environment/container-runtimes/
