@@ -26,11 +26,12 @@
 # }
 
 # TODO:
-# Allow one more operation to proceed with just cluster initialisation, assuming bootstrap is successful.
-# Control plane join node ( certs )
+# Allow one more operation to proceed with just cluster initialisation, assuming bootstrap is successful; and also just reset option
 # pod network enabling - maybe customise this to support different CNI
 # improve logging so that only command status is logged to stdout; command logs to be redireted to log files within nodes ( 
 # or maybe a timestamped log file on host idk)
+# IMP: Figure out how to enable passwordless sudo without it being enabled in the first place
+#
 
 CLUSTERSPEC=""
 # allowed operations: deploy, remove
@@ -171,7 +172,7 @@ function setupCluster() {
 
     # perform init operation in init CP node.
 ssh -o BatchMode=yes -o ConnectTimeout=5 "${initcpuser}@${initcpnode}" 'bash -s' <<'INIT_EOF'
-MASTER_IP=$(ip -4 addr show enp2s0 | awk '/inet / {print $2}' | cut -d/ -f1)
+MASTER_IP=$(ip -4 -o addr show enp2s0 | awk '{print $4}'| cut -d/ -f1)
 sudo kubeadm init \
 --apiserver-advertise-address "${MASTER_IP}" \
 --control-plane-endpoint "${MASTER_IP}" \
@@ -192,12 +193,25 @@ INIT_EOF
     fi
 
     # cluster access step is done for only one CP ndoe as of now. extend this
-
-    # perform join operations; let's skip control plane join for now since it is a little bit longer
-
+    CERTIFICATE_KEY=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "${initcpuser}@${initcpnode}" "sudo kubeadm init phase upload-certs --upload-certs | tail -n 1")
     WORKER_JOIN_COMMAND=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "${initcpuser}@${initcpnode}" "sudo kubeadm token create --print-join-command")
-    echo "${WORKER_JOIN_COMMAND}"
+   
+    # join control plane nodes
 
+    while read -r username hostname; do
+        NODE_IP=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "${username}@${hostname}" "ip -4 -o addr show enp2s0 | awk '{print \$4}\'| cut -d/ -f1")  
+        MASTER_JOIN_COMMAND="${WORKER_JOIN_COMMAND} --control-plane --certificate-key ${CERTIFICATE_KEY} --ignore-preflight-errors=Mem --apiserver-advertise-address=${NODE_IP}"
+        echo "${MASTER_JOIN_COMMAND}"
+        if ssh -n -o BatchMode=yes -o ConnectTimeout=5 \
+            "${username}@${hostname}" "sudo ${MASTER_JOIN_COMMAND}"; then
+            logSuccess "Control plane node ${hostname} joined cluster"
+        else
+            logError "Join command failed for control-plane node: ${hostname}"
+        fi
+    done < <(jq -r '.nodes[] | select(.role=="control-plane" and .init=="false") | "\(.username) \(.hostname)"' "${CLUSTERSPEC}")
+
+
+    # worker join
     while read -r username hostname; do
         if ssh -n -o BatchMode=yes -o ConnectTimeout=5 \
             "${username}@${hostname}" "sudo ${WORKER_JOIN_COMMAND}"; then
@@ -292,7 +306,7 @@ inputValidation || exit 1
 
 # check if deploy, addume deploy for now
 if [[ ${OPERATION} == "deploy" ]];then
-    # bootstrap || exit 1
+    bootstrap || exit 1
     setupCluster || exit 1
     echo ""
 else

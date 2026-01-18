@@ -2,19 +2,19 @@
     "nodes": [
         {
             "username": "beans",
-            "hostname": "k8-master-0",
+            "hostname": "m0",
             "role": "control-plane",
             "init": "true"
         },
         {
             "username": "beans",
-            "hostname": "k8-master-1",
-            "role": "control-plane",
+            "hostname": "w0",
+            "role": "worker",
             "init": "false"
         },
         {
             "username": "beans",
-            "hostname": "k8-worker-0",
+            "hostname": "w1",
             "role": "worker",
             "init": "false"
         }

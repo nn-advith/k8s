@@ -280,7 +280,7 @@ function startVM() {
     vmname="${1}"
     logStart "Starting VM ${vmname}"
     virsh start "${vmname}" > /dev/null 2>&1 || return 1
-    logStart "Started VM ${vmname}"
+    logSuccess "Started VM ${vmname}"
     return 0
 }
 
